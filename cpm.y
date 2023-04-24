@@ -1,0 +1,1032 @@
+%{
+    #include <stdio.h>
+	#include "cpm.c"
+%}
+
+%union 
+{
+    struct 
+    {
+        char* id; // Pointer to a character string representing the variable's name or identifier
+        char type; // A character representing the type of the value stored in the union
+        union
+        {
+            float Var_Float; // A float value
+            char* Val_String; // A pointer to a character string representing a value
+            int Val_Int; // An integer value
+        } value; // Union containing the value of the variable
+    } Var; // Struct containing information about the variable
+
+enum {
+  assignop,
+  andop,
+  subop,
+  equalop,
+  notequalop,
+  greaterthanop,
+  mulop,
+  orop,
+  divop,
+  lessthanop,
+  addop,
+  greatorequalop,
+  lessorequal
+} op;
+	char type;
+}
+
+%token <op> relop
+%token <op> _addop
+%token <op> _mulop
+%token <op> _assignop
+
+
+
+
+%token <op> AndandOrop
+%token <Var> _num
+%token <Var> _id
+%token <Var> _sentence
+
+%token _foreach
+%token end
+%token _else
+%token till
+%token out
+%token intt
+%token DEFAULT
+%token _if
+%token program
+%token in
+%token DO
+%token thenn
+%token CASE
+%token BREAK
+%token start
+%token real
+%token SWITCHH
+%token final
+%token _while
+%token decl
+%token string
+%token _with
+
+
+%start PROGRAM
+
+%type <type> TYPE
+
+%type <Var> EXPRESSION
+%type <Var> TERM
+%type <Var> FACTOR
+
+
+%left AndandOrop
+%left _mulop
+
+%left _addop
+
+%left relop
+%right _assignop
+
+%% 
+//complete//
+/*
+program: A keyword indicating the start of the program.
+_id: An identifier indicating the name of the program.
+start: A keyword indicating the start of the program code.
+DECLARATIONS: Declarations of variables and constants used in the program.
+STMTLIST: A list of statements that make up the program code.
+end: A keyword indicating the end of the program.
+{Mips_Exit();}: A function call to a Mips_Exit function that generates MIPS assembly code to terminate the program.
+The error alternative is used to handle syntax errors in the program. If the parser encounters a syntax error, it will attempt to recover by skipping to the next newline character.
+*/
+PROGRAM:		program _id start DECLARATIONS STMTLIST end 
+            {Mips_Exit();}
+			| error '\n'
+			{
+				yyerrok;  
+				yyclearin;
+			}
+;
+
+
+
+
+
+
+
+
+
+//complete//
+DECLARATIONS:		 decl DECLARLIST CDECL
+
+			|
+;
+
+
+
+
+
+
+
+
+
+//complete//
+DECLARLIST:		DECLARLIST DECL
+
+			| DECL
+;
+
+
+
+
+
+
+
+//complete - $1 value of the first symbol on the right-hand side of the rule// 
+/*
+The rule starts with the TYPE keyword, which specifies the data type of the variables being declared.
+The semantic action associated with the TYPE keyword sets the global variable decl_type to the corresponding character code for the data type (i.e., 'i' for int, 'f' for float, and 's' for string).
+After the colon, the rule expects a comma-separated list of variable identifiers, defined by the LIST rule.
+The semantic actions associated with the LIST rule check each identifier in the list to ensure that it has not already been declared. If the identifier is valid, a new node is added to the symbol table with the corresponding data type and default value (0 for int and float, NULL for string). The new node is also added to two separate linked lists for int/float variables and string variables, respectively.
+*/
+DECL:			TYPE
+			{ decl_type = $1;  }
+			':' LIST
+;
+
+
+
+
+
+
+//complete - $1 value of the first symbol on the right-hand side of the rule// 
+/*
+LIST rule is used to define a list of variable names separated by commas. The rule handles the declaration of the variables in the list by pushing their default values to the corresponding symbol table and MIPS assembly code.
+TYPE rule defines the possible types of variables in the programming language: integer, real, and string.
+
+*/
+LIST:			_id',' LIST
+			{	
+				if (!IsId($1.id))  
+				{
+                  if (decl_type == 'i')
+				 {
+                    push_Int_To_List($1.id, 0, FALSE, FALSE);
+                    push_Int_To_Mips($1.id, 0);
+                  } else
+				   if (decl_type == 'f')
+	              {
+                    push_Float_To_List($1.id, 0.0, FALSE, FALSE);
+                    push_Float_To_Mips($1.id, 0.0);
+                   } else 
+				   if (decl_type == 's') 
+	               {
+                    push_String_To_List($1.id, NULL, FALSE, FALSE);
+                    push_String_To_Mips($1.id, NULL);
+                   }
+                } else Error_Redeclaration($1.id);
+			}
+
+			| _id';'
+			{	
+				if (!IsId($1.id)) 
+				{
+                  if (decl_type == 'i')
+				 {
+                    push_Int_To_List($1.id, 0, FALSE, FALSE);
+                    push_Int_To_Mips($1.id, 0);
+                  } else
+				   if (decl_type == 'f')
+	              {
+                    push_Float_To_List($1.id, 0.0, FALSE, FALSE);
+                    push_Float_To_Mips($1.id, 0.0);
+                   } else 
+				   if (decl_type == 's') 
+	               {
+                    push_String_To_List($1.id, NULL, FALSE, FALSE);
+                    push_String_To_Mips($1.id, NULL);
+                   }
+                } else Error_Redeclaration($1.id);
+			}
+;
+
+
+
+
+
+
+//complete//
+TYPE:			intt
+			{
+				$$ = 'i';
+			}
+			| real
+			{
+				$$ = 'f';
+			}
+			| string
+			{
+				$$ = 's';
+			}
+;
+
+
+
+
+//complete//
+CDECL:        final TYPE _id _assignop _num';' CDECL
+        {
+               if (!IsId($3.id)) // $3 holds the identifier for the variable
+                {
+                      if ($2 == 'i') // $2 holds the type of the variable being declared
+                 {
+                        if ($5.type == 'i') // $5 holds the value being assigned to the variable
+                       {
+                         push_Int_To_Mips($3.id, $5.value.Val_Int);
+                         push_Int_To_List($3.id, $5.value.Val_Int, TRUE, TRUE);
+                       }
+                       else // ($5.type == 'f')
+                       {
+                         int Val_Int = (int)$5.value.Var_Float;
+                         push_Int_To_Mips($3.id, Val_Int);
+                         push_Int_To_List($3.id, Val_Int, TRUE, TRUE);
+                       }
+                  }
+                             else // $2 == 'f'
+                          {
+                                      if ($5.type == 'i') // $5 holds the value being assigned to the variable
+                                    {
+                                      float Var_Float = (float)$5.value.Val_Int;
+                                      push_Float_To_Mips($3.id, Var_Float);
+                                      push_Float_To_List($3.id, Var_Float, TRUE, TRUE);
+                                    }
+                                    else // ($5.type == 'f') // $5 holds the value being assigned to the variable
+                                    {
+                                       push_Float_To_Mips($3.id, $5.value.Var_Float);
+                                       push_Float_To_List($3.id, $5.value.Var_Float, TRUE, TRUE);
+                                    }
+                          }
+                }
+                                   else
+                           {
+                          Error_Redeclaration($3.id);
+                       }
+        }
+
+//CDECL
+
+                      | final TYPE _id _assignop _sentence';' CDECL
+         {
+                     if (!IsId($3.id))
+                     {
+                       push_String_To_List($3.id, $5.value.Val_String, TRUE, TRUE);
+                       push_String_To_Mips($3.id, $5.value.Val_String);
+                     }
+                       else
+                      {
+                        Error_Redeclaration($3.id);
+                      }
+         }
+
+| ;
+
+//complete//
+STMTLIST:		STMTLIST STMT
+			|
+;
+
+
+
+
+
+
+//complete//
+/*
+ASSIGNMENT_STMT: an assignment of a value to a variable
+CONTROL_STMT: a control flow statement, such as an if statement or a loop
+IN_STMT: an input statement to read a value from the user
+OUT_STMT: an output statement to display a value to the user
+STMT_BLOCK: a block of statements enclosed in curly braces
+The code also includes semantic actions, which are executed when the corresponding rule is matched during parsing.
+*/
+STMT:			ASSIGNMENT_STMT
+
+			| _id _assignop _sentence';'
+			{
+				Node_Symbol_In_Table* node = find_Node_using_Id ($1.id);
+
+				if (node == NULL)
+				{
+					Error_undeclared_Var($1.id);
+				}
+				else if (node->type != 's')
+				{
+					Error_Wrong_Type_For_Assignment(node->id, node->type);
+				}
+				else if (node->isImmutable)
+				{
+					Error_Constent_Var($1.id);
+				}
+				else
+				{
+					assign_String_Value($1.id, $3.value.Val_String);
+					assign_To_String_In_Mips($1.id, $3.value.Val_String);
+				}
+			}
+
+			| CONTROL_STMT
+
+			| IN_STMT
+
+			| OUT_STMT
+
+			| STMT_BLOCK
+;
+
+
+
+
+
+//complete//
+/*
+In this version, we first define the type variable as the $3.type value.
+ If $3.id is not NULL, we check if the variable has been assigned using node->hasBeenAssigned.
+ If it hasn't, we call the Error_undeclared_Var function and return to exit the rule. Otherwise, we update the type variable to node->type.
+
+After that, we use an if-else statement to handle the two cases separately: when $3.id is NULL and when it's not.
+ In each case, we use a switch statement to call the appropriate emitOutputCodeForMips function with the right parameters.
+
+The second rule is the same as in the original code.
+*/
+OUT_STMT:    out'('EXPRESSION')'';'
+	{
+	
+		Node_Symbol_In_Table* node = find_Node_using_Id ($3.id);
+
+		if ($3.id != NULL && !node->hasBeenAssigned)
+		{
+			Error_undeclared_Var($3.id);
+		}
+		else
+		{
+			if ($3.id == NULL)
+			{
+				if ($3.type == 'i')
+				{	
+					emit_Out_put_Code_For_Mips(NULL, 'i', $3.value.Val_Int, $3.value.Var_Float);
+				}
+				else if ($3.type == 'f')
+				{
+					emit_Out_put_Code_For_Mips(NULL, 'f', $3.value.Val_Int, $3.value.Var_Float);
+				}
+				else if ($3.type == 's')
+				{
+					emit_Out_put_Code_For_Mips(NULL, 's', $3.value.Val_Int, $3.value.Var_Float);
+				}
+			}
+			else
+			{
+				if (node->type == 'i')
+				{
+					emit_Out_put_Code_For_Mips(node->id, 'i', 0, 0.0);
+				}
+				else if (node->type == 'f')
+				{
+					emit_Out_put_Code_For_Mips(node->id, 'f', 0, 0.0);
+				}
+				else if (node->type == 's')
+				{
+					emit_Out_put_Code_For_Mips(node->id, 's', 0, 0.0);
+				}
+			}
+		}
+	}
+
+	| out'('_sentence')'';'
+	{
+		emit_Out_put_Code_For_Mips($3.value.Val_String, 'e', 0, 0.0);
+	}
+;
+
+
+
+
+
+//complete//
+/*
+This is a parser rule that handles the input statement, which reads a value from the user and assigns it to a variable. 
+The rule begins by calling the find_Node_using_Id function to search for the variable in the symbol table. 
+If the variable is found, the code generates MIPS assembly code to read a value from the user input based on the variable's data type using the emitReadCodeForMips function.
+ It then sets the hasBeenAssigned flag of the node to true to indicate that the variable has been initialized.
+
+If the variable is not found in the symbol table, an error message is generated using the Error_undeclared_Var function to indicate that the variable has not been declared before and cannot be used.
+*/
+IN_STMT:		in'('_id')'';'
+			{
+				Node_Symbol_In_Table* node = find_Node_using_Id ($3.id);
+				if (node != NULL)
+                  {
+                     if (node->type == 'i')
+                       {
+                        emit_Read_Code_For_Mips(node->id, 'i');
+                         node->hasBeenAssigned = TRUE;
+                       }
+                         else if (node->type == 'f')
+                        {
+                         emit_Read_Code_For_Mips(node->id, 'f');
+                         node->hasBeenAssigned = TRUE;
+                        }
+                             else if (node->type == 's')
+                        {
+                         emit_Read_Code_For_Mips(node->id, 's');
+                         node->hasBeenAssigned = TRUE;
+                        }
+                               }
+                              else
+                                   {
+                                     Error_undeclared_Var($3.id);
+                                   }
+
+			  }
+;
+
+
+
+
+
+//complete//
+/*
+This code is the implementation of the assignment statement in a programming language. 
+It first finds the node in the symbol table corresponding to the identifier being assigned a value.
+ If the node is not found, it produces an error for an undeclared variable. If the node represents a string variable, it produces an error for the wrong type of assignment.
+ If the node represents a constant variable, it produces an error for attempting to modify a constant.
+
+Next, it finds the node in the symbol table corresponding to the expression being assigned. If the expression identifier is not found, it produces an error for an undeclared variable.
+ If the expression identifier represents a string variable, it produces an error for the wrong type of assignment.
+
+If there are no errors, it generates code for the assignment and assigns the value to the variable. If the variable is an integer type, it calls the assign_Integer_To_Variable function. 
+Otherwise, it calls the assign_Float_To_Variable function. If an operation is in progress, it emits end assignment code for MIPS, otherwise it generates code for MIPS for the assignment.
+*/
+ASSIGNMENT_STMT:
+    _id _assignop EXPRESSION';'
+    {
+        Node_Symbol_In_Table* node = find_Node_using_Id($1.id);
+
+        if (node == NULL) {
+            Error_undeclared_Var($1.id);
+        }
+        else if (node->type == 's') {
+            Error_Wrong_Type_For_Assignment(node->id, node->type);
+        }
+        else if (node->isImmutable) {
+            Error_Constent_Var(node->id);
+        }
+        else {
+            Node_Symbol_In_Table* Node_IN_Symbol = find_Node_using_Id($3.id);
+            if ($3.id != NULL && Node_IN_Symbol == NULL) {
+                Error_undeclared_Var($3.id);
+            }
+            else if ($3.id != NULL && Node_IN_Symbol->type == 's') {
+                Error_Wrong_Type_For_Assignment(Node_IN_Symbol->id, Node_IN_Symbol->type);
+            }
+            else {
+                if (operationInPrograss) {
+                    generate_End_For_Mips(node->id, node->type);
+                }
+                else {
+                    generate_Assignment_Code_For_Mips(node->id, node->type, $3.id, $3.value.Val_Int, $3.value.Var_Float, $3.type);
+                }
+
+                if (node->type == 'i') {
+                    assign_Integer_To_Variable($1.id, $3.value.Val_Int);
+                }
+                else {
+                    assign_Float_To_Variable($1.id, $3.value.Var_Float);
+                }
+            }
+        }
+    }
+;
+
+
+
+
+
+//complete//
+/*
+If-else statement: The first part of the rule defines the syntax for an if-else statement. 
+When the parser encounters an if statement, it generates validation code for the boolean expression in the if statement. 
+If the expression evaluates to true, it executes the code block inside the if statement. If the expression evaluates to false, it executes the code block inside the else statement. 
+After execution, it generates the end-if code for MIPS.
+
+While loop: The second part of the rule defines the syntax for a while loop.
+ When the parser encounters a while loop, it generates start-while code for MIPS, validation code for the boolean expression in the while statement, and executes the code block inside the while statement.
+ After execution, it generates the end-while code for MIPS.
+
+For-each loop with step: The third part of the rule defines the syntax for a for-each loop with a step.
+ When the parser encounters a for-each loop, it pushes the loop variable, start value, and step value to a list and to MIPS. 
+ It generates start-for-each code for MIPS, validation code for the loop variable, executes the code block inside the loop, and generates end-of-loop code for MIPS. 
+ If there is a step value, it executes the statement after the "with" keyword.
+
+For-each loop without step: The fourth part of the rule defines the syntax for a for-each loop without a step.
+ It follows the same process as the third part of the rule but does not execute the statement after the "with" keyword and removes the loop variable from the symbol table after execution.
+
+Do-while loop: The fifth part of the rule defines the syntax for a do-while loop.
+ It generates start-do-while code for MIPS, executes the code block inside the loop, generates validation code for the boolean expression in the till statement, and generates end-of-do-while code for MIPS.
+*/
+CONTROL_STMT:		_if '('BOOLEXPR')' thenn
+			{
+				generate_Comparison_Validation_Code_For_Mips();
+			}
+			STMT _else
+			{
+				generate_Else_Code_For_Mips();
+			}
+			STMT
+			{
+				generate_End_If_Code_For_Mips();
+			}
+			| _while
+			{
+				generate_Start_While_Code_For_Mips();
+			}
+			'('BOOLEXPR')'
+			{
+				generate_While_Validation_Code_For_Mips();
+			}
+			STMT_BLOCK
+			{
+				generate_End_While_Code_For_Mips();
+			}
+			| _foreach _id _assignop _num till _num
+			{
+				push_Int_To_List($2.id, $4.value.Val_Int, FALSE, TRUE);
+				push_Int_To_Mips($2.id, $4.value.Val_Int);
+				generate_Start_For_each_Code_For_Mips();
+				generate_Comparison_Mips("ne", $2.id, NULL, $2.value.Val_Int, $6.value.Val_Int, $2.value.Var_Float, $6.value.Var_Float, 'i', $6.type);
+				generate_Foreach_Validation_Code_Mips();
+			}
+			_with STEP STMT
+			{
+				generate_Mips_Code_For_End_Of_Foreach_Loop_Mips();
+			}
+			| _foreach _id _assignop _num till _id
+			{
+				push_Int_To_List($2.id, $4.value.Val_Int, FALSE, TRUE);
+				push_Int_To_Mips($2.id, $4.value.Val_Int);
+				generate_Start_For_each_Code_For_Mips();
+				generate_Comparison_Mips("ne", $2.id, $6.id, $2.value.Val_Int, $6.value.Val_Int, $2.value.Var_Float, $6.value.Var_Float, 'i', $6.type);
+				generate_Foreach_Validation_Code_Mips();
+			}
+			_with STEP STMT
+			{
+				generate_Mips_Code_For_End_Of_Foreach_Loop_Mips();
+				remove_Symbol_From_Table($2.id);
+			}
+			| DO
+			{
+				generate_Do_While_Start_For_Mips();
+			}
+			STMT_BLOCK till '('BOOLEXPR')'
+			{
+				 generate_Do_Validation_Mips_Statement();
+				generate_End_Of_Do_Statement_In_For_Mips();
+			}
+			| SWITCH
+;
+
+
+
+//complete//
+STMT_BLOCK:		'{' STMTLIST '}'
+;
+
+
+
+//complete//
+SWITCH:			SWITCHH '('IDD')' '{' CASES '}'
+;
+
+
+
+//complete//
+/*
+The first part of the rule defines a case where the switch statement matches a numeric value. 
+It generates MIPS assembly code for the case using the generate_Mips_Assembly_For_Switch_Case function. The function takes the value of the numeric case, its float equivalent, and its type as input parameters.
+ After generating the assembly code for the case, the rule executes the statements defined in STMTLIST and then generates a break statement using the generate_Switch_Break_For_Mips function. Finally, the rule calls itself recursively to define any subsequent cases that may exist.
+
+The second part of the rule defines a default case for the switch statement.
+ It generates the MIPS assembly code for the default case using the generate_Switch_Choice_For_Mips function.
+ After generating the code for the default case, the rule executes the statements defined in STMTLIST and then generates an end label using the generate_Switch_End_Label_For_Mips function.
+*/
+IDD:			_id
+			{
+				generate_Mips_Code_For_Switch_Case($1.id, 0, 0.0, $1.type);
+			}
+
+			| _num
+			{
+				generate_Mips_Code_For_Switch_Case(NULL, $1.value.Val_Int, $1.value.Var_Float, $1.type);
+			}
+;
+
+
+
+
+
+//complete//
+/*
+The syntax has two main components: CASES and DEFAULT.
+ CASES can have multiple components, each starting with a CASE statement followed by a number, colon, and then a block of code to execute if that particular case is matched.
+ The code block is followed by a BREAK statement, indicating that execution should continue after the end of the switch statement. 
+ CASES can be followed by an optional DEFAULT component, which contains code to execute if none of the cases match.
+
+The code block for each case appears to be passed to a function called generate_Mips_Assembly_For_Switch_Case, which presumably generates MIPS assembly code for the corresponding block.
+ Similarly, the BREAK statement appears to be passed to a function called generate_Switch_Break_For_Mips, and the DEFAULT component is passed to generate_Switch_Choice_For_Mips and generate_Switch_End_Label_For_Mips.
+
+*/
+CASES:			CASE _num':'
+			{
+				generate_Mips_Assembly_For_Switch_Case($2.value.Val_Int, $2.value.Var_Float, $2.type);
+			}
+			STMTLIST BREAK';'
+			{
+				generate_Switch_Break_For_Mips();
+			}
+			CASES
+
+			| DEFAULT':'
+			{
+				generate_Switch_Choice_For_Mips();
+			}
+			STMTLIST
+			{
+				generate_Switch_End_Label_For_Mips();
+			}
+;
+//complete//
+/*
+ It handles two productions in a grammar for arithmetic expressions where an identifier is assigned an arithmetic expression involving another identifier and a number.
+ The first production handles an addition or subtraction operation, while the second production handles a multiplication or division operation.
+
+In both cases, the code calls a function addArithmeticOperationToMips to generate MIPS assembly code for the corresponding arithmetic operation using the two identifiers and the number.
+ It then calls emitEndAssignmentCodeForMips to generate MIPS assembly code to assign the result of the arithmetic expression to the identifier on the left-hand side of the assignment.
+*/
+STEP:			_id _assignop _id _addop _num
+			{
+				if ($4 = addop) // $4 is a reference to the fourth item in the syntax rule 
+				{
+					generate_Arithmetic_Op_For_Mips("add", $3.id, NULL, $3.value.Val_Int, $5.value.Val_Int, $3.value.Var_Float, $5.value.Var_Float, 'i', $5.type);
+					generate_End_For_Mips($1.id, 'i');
+				}
+				else //($4 == subop) // $4 is a reference to the fourth item in the syntax rule 
+				{
+					generate_Arithmetic_Op_For_Mips("sub", $3.id, NULL, $3.value.Val_Int, $5.value.Val_Int, $3.value.Var_Float, $5.value.Var_Float, 'i', $5.type);
+					generate_End_For_Mips($1.id, 'i');
+				}
+			}
+
+			| _id _assignop _id _mulop _num
+			{
+				if ($4 = mulop) //  $4 is a reference to the fourth item in the syntax rule 
+				{
+					generate_Arithmetic_Op_For_Mips("mul", $3.id, NULL, $3.value.Val_Int, $5.value.Val_Int, $3.value.Var_Float, $5.value.Var_Float, 'i', $5.type);
+					generate_End_For_Mips($1.id, 'i');
+				}
+				else //($4 == divop) // $4 is a reference to the fourth item in the syntax rule 
+				{
+					generate_Arithmetic_Op_For_Mips("div", $3.id, NULL, $3.value.Val_Int, $5.value.Val_Int, $3.value.Var_Float, $5.value.Var_Float, 'i', $5.type);
+					generate_End_For_Mips($1.id, 'i');
+				}
+			}
+;
+//complete//
+/*
+BOOLEXPR AndandOrop BOOLFACTOR: If the boolean expression involves an additional boolean factor connected by an "and" or "or" operator, the code calls a function generate_And_or_Or_For_Mips to generate MIPS code for the operator. 
+The specific operator used depends on the value of $2, which represents the "andorop" used in the expression.
+BOOLFACTOR AndandOrop BOOLFACTOR: This is similar to the first case, but the boolean expression starts with a single boolean factor, and is followed by an "and" or "or" operator and another boolean factor.
+ Again, the appropriate generate_And_or_Or_For_Mips function is called based on the value of $2.
+BOOLFACTOR: If the boolean expression is just a single boolean factor, no additional code needs to be generated.
+BOOLTERM  and BOOLEXPR
+*/
+BOOLEXPR:		BOOLEXPR AndandOrop BOOLFACTOR
+			{
+				if ($2 == andop)
+				{
+					generate_And_or_Or_For_Mips("and");
+				}
+				
+				else // ($2 == orop)
+				{
+					generate_And_or_Or_For_Mips("or");
+				}
+			}
+
+			| BOOLFACTOR AndandOrop BOOLFACTOR
+			{
+				if ($2 == andop)
+				{
+					generate_And_or_Or_For_Mips("and");
+				}
+				else // ($2 == orop)
+				{
+					generate_And_or_Or_For_Mips("or");
+				}
+			}
+
+			| BOOLFACTOR
+;
+
+//complete//
+/*
+This code is defining the production rule for a boolean factor in a syntax analyzer. A boolean factor can either be a logical negation of another boolean factor or a comparison between two expressions using a relational operator.
+
+The first option is represented by the '!' symbol followed by a boolean factor in parentheses. In this case, the code sets a flag to indicate that a logical negation is being performed.
+
+The second option is represented by an expression on either side of a relational operator. The code first checks if either expression is a string, which would be an error. If not, it generates MIPS code for the appropriate comparison operation based on the relational operator used.
+
+Overall, this code defines how a boolean factor is parsed and evaluated in the context of a larger program.
+*/
+BOOLFACTOR:		'!'
+			{
+				Flag_Not = TRUE;
+			}
+			'('BOOLFACTOR')'
+			{
+				Flag_Not = FALSE;	
+			}
+
+			| EXPRESSION relop EXPRESSION
+			{
+				if ($1.type == 's' || $3.type == 's')
+				{
+					Error_With_String_op();
+				}
+				else
+				{
+					if ($2 == equalop)
+                    {
+                        generate_Comparison_Mips("eq", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                    }
+                    else 
+					if ($2 == notequalop)
+                        {
+                          generate_Comparison_Mips("ne", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                        }
+                      else 
+					  if ($2 == lessthanop)
+                            {
+                               generate_Comparison_Mips("lt", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                            }
+                            else 
+							if ($2 == greaterthanop)
+                                  {
+                                     generate_Comparison_Mips("gt", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                                  }
+                                    else 
+									if ($2 == greatorequalop)
+                                     {
+                                       generate_Comparison_Mips("ge", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                                     }
+                                      else 
+									  if ($2 == lessorequal)
+                                        {
+                                         generate_Comparison_Mips("le", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+                                        }
+				}
+			}
+;
+//complete//
+/*
+The code defines two production rules for an expression:
+
+1.An expression can be the combination of two sub-expressions (an expression followed by an addition or subtraction operator followed by a term). 
+In this case, the code performs the following steps:
+It checks if either the left or right sub-expression is a string (denoted by 's' in the code), in which case it throws an error using the function Error_With_String_op().
+It checks if the left sub-expression has been assigned a value, and if not, it throws an error using the function Error_undeclared_Var().
+It checks if the right sub-expression has been assigned a value, and if not, it throws an error using the function Error_undeclared_Var().
+It generates MIPS assembly code for the expression, either by calling generate_Mips_Arith_Expr() if an operation is already in progress, or by calling generate_Arithmetic_Op_For_Mips() if this is the start of a new operation.
+It calculates the result of the expression and stores it in the variable $$, which is the result of the entire expression. If both sub-expressions are integers, the result is an integer and stored in $$. Otherwise, the result is a float and stored in $$.
+2. An expression can be just a term. In this case, the code simply sets $$ to the value of the term.
+*/
+EXPRESSION:		EXPRESSION _addop TERM
+			{
+				Node_Symbol_In_Table* node1 = find_Node_using_Id ($1.id);
+				Node_Symbol_In_Table* node2 = find_Node_using_Id ($3.id);
+				if ($1.type == 's' || $3. type == 's')
+				{
+					Error_With_String_op();
+				}
+				else if ($1.id != NULL && !node1->hasBeenAssigned)
+				{
+					Error_undeclared_Var($1.id);
+				}
+				else if ($3.id != NULL && !node2->hasBeenAssigned)
+				{
+					Error_undeclared_Var($3.id);
+				}
+				else
+				{
+					if ($2 == addop)
+					{
+						if (operationInPrograss)
+						{
+							generate_Mips_Arith_Expr("add", $3.id, $3.value.Val_Int, $3.value.Var_Float, $3.type);
+						}
+						else
+						{
+							generate_Arithmetic_Op_For_Mips("add", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+						}
+
+						if ($1.type == 'i' && $3.type == 'i')
+						{
+							$$.type = 'i';
+							$$.value.Val_Int = $1.value.Val_Int + $3.value.Val_Int;
+						}
+						else
+						{
+							$$.type = 'f';
+							$$.value.Var_Float = ($1.type == 'i' ? $1.value.Val_Int : $1.value.Var_Float) + ($3.type == 'i' ? $3.value.Val_Int : $3.value.Var_Float);
+						}
+					}
+					else // ($2 == subop)
+					{
+						if (operationInPrograss)
+						{
+							generate_Mips_Arith_Expr("sub", $1.id, $1.value.Val_Int, $1.value.Var_Float, $1.type);
+						}
+						else
+						{
+							generate_Arithmetic_Op_For_Mips("sub", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+						}
+
+						if ($1.type == 'i' && $3.type == 'i')
+						{
+							$$.type = 'i';
+							$$.value.Val_Int = $1.value.Val_Int - $3.value.Val_Int;
+						}
+						else
+						{
+							$$.type = 'f';
+							$$.value.Var_Float = ($1.type == 'i' ? $1.value.Val_Int : $1.value.Var_Float) - ($3.type == 'i' ? $3.value.Val_Int : $3.value.Var_Float);
+						}
+					}
+				}
+			}
+
+			| TERM
+			{
+				$$ = $1;
+			}
+;
+//complete//
+/*
+This is a code snippet of a grammar rule for parsing and evaluating arithmetic expressions in a programming language. The rule is for parsing terms, which are a combination of factors and multiplication/division operators.
+
+The first alternative of the rule handles the case where a term consists of a term followed by a multiplication or division operator followed by a factor. This corresponds to the left-associative nature of multiplication and division operators in the language.
+
+The semantic actions associated with this alternative first check if either the left or right operands are strings, in which case it raises an error. Then it checks if either of the operands are undefined variables, in which case it raises an error as well. If both operands are defined variables or constants, it performs the multiplication or division operation, both in generating the code for the MIPS assembler and computing the result. The result is then returned in the $$. The type of the result is determined by the types of the operands, where integer operands produce an integer result and float operands produce a float result.
+
+The second alternative of the rule handles the case where a term consists of just a factor. In this case, the factor is just returned in $$.
+*/
+TERM:			TERM _mulop FACTOR
+			{
+				Node_Symbol_In_Table* node1 = find_Node_using_Id ($1.id);
+				Node_Symbol_In_Table* node2 = find_Node_using_Id ($3.id);
+
+
+				if ($1.type == 's' || $3. type == 's')
+				{
+					Error_With_String_op();
+				}
+				else if ($1.id != NULL && !node1->hasBeenAssigned)
+				{
+					Error_undeclared_Var($1.id);
+				}
+				else if ($3.id != NULL && !node2->hasBeenAssigned)
+				{
+					Error_undeclared_Var($3.id);
+				}
+				else
+				{
+					if ($2 == mulop)
+					{
+						if (operationInPrograss)
+						{
+							generate_Mips_Arith_Expr("mul", $1.id, $1.value.Val_Int, $1.value.Var_Float, $1.type);
+						}
+						else
+						{
+							generate_Arithmetic_Op_For_Mips("mul", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+						}
+
+						if ($1.type == 'i' && $3.type == 'i')
+						{
+							$$.type = 'i';
+							$$.value.Val_Int = $1.value.Val_Int * $3.value.Val_Int;
+						}
+						else
+						{
+							$$.type = 'f';
+							$$.value.Var_Float = ($1.type == 'i' ? $1.value.Val_Int : $1.value.Var_Float) * ($3.type == 'i' ? $3.value.Val_Int : $3.value.Var_Float);
+						}
+					}
+					else // ($2 == divop)
+					{
+						if (operationInPrograss)
+						{
+							generate_Mips_Arith_Expr("div", $1.id, $1.value.Val_Int, $1.value.Var_Float, $1.type);
+						}
+						else
+						{
+							generate_Arithmetic_Op_For_Mips("div", $1.id, $3.id, $1.value.Val_Int, $3.value.Val_Int, $1.value.Var_Float, $3.value.Var_Float, $1.type, $3.type);
+						}
+
+						if ($1.type == 'i' && $3.type == 'i')
+						{
+							$$.type = 'i';
+							$$.value.Val_Int = $1.value.Val_Int * $3.value.Val_Int;
+						}
+						else
+						{
+							$$.type = 'f';
+							$$.value.Var_Float = ($1.type == 'i' ? $1.value.Val_Int : $1.value.Var_Float) * ($3.type == 'i' ? $3.value.Val_Int : $3.value.Var_Float);
+						}
+					}
+				}
+			}
+
+			| FACTOR
+			{
+				$$ = $1;
+			}
+;
+//complete//
+/*
+This code represents the syntax for parsing expressions in a programming language. Specifically, it defines the syntax for parsing factors, which are the basic building blocks of expressions.
+
+A factor can be either a parenthesized expression or a literal value (either an identifier or a number). The code defines three cases for parsing a factor:
+
+1.If the factor is a parenthesized expression, it simply returns the value of the expression within the parentheses.
+
+2.If the factor is an identifier (represented by the _id token), the code looks up the identifier in a symbol table to determine its type and value. If the identifier is not found in the table, the code reports an error. Otherwise, it sets the type and value of the factor to the type and value of the identifier in the symbol table.
+
+3.If the factor is a number (represented by the _num token), the code sets the type and value of the factor to the type and value of the number.
+
+*/
+FACTOR:			'(' EXPRESSION ')'
+			{
+				$$ = $2;
+			}
+
+			| _id
+			{
+				Node_Symbol_In_Table* node = find_Node_using_Id ($1.id);
+
+				if (node == NULL)
+				{
+					Error_undeclared_Var($1.id);
+				}
+				else
+				{
+					$$.id = $1.id;
+
+					switch (node->type)
+					{
+						case 'i':
+							$$.type = 'i';
+							$$.value.Val_Int = $1.value.Val_Int;
+							break;
+
+						case 'f':
+							$$.type = 'f';
+							$$.value.Var_Float = $1.value.Var_Float;
+							break;
+
+						case 's':
+							$$.type = 's';
+							$$.value.Val_String = $1.value.Val_String;
+							break;
+					}
+				}
+			}
+
+			| _num
+			{
+				$$.id = NULL;
+
+				if ($1.type == 'i')
+				{
+					$$.type = 'i';
+					$$.value.Val_Int = $1.value.Val_Int;
+				}
+				else
+				{
+					$$.type = 'f';
+					$$.value.Var_Float = $1.value.Var_Float;
+				}
+			}
+;			
+%%
